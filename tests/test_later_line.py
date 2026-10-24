@@ -31,6 +31,14 @@ class AcceptTests(unittest.TestCase):
     def test_rejects_a_line_that_pretends_the_task_is_done(self):
         self.assertFalse(accept(SOURCE, "Meera invoice addressed"))
 
+    def test_rejects_a_number_stuck_to_the_wrong_noun(self):
+        drawer = "The kitchen drawer of chargers. Three cables, one of them frayed."
+        self.assertFalse(accept(drawer, "Three frayed cables in the drawer"))
+        self.assertTrue(accept(drawer, "one frayed"))
+
+    def test_rejects_a_word_the_task_never_used(self):
+        self.assertFalse(accept(SOURCE, "Missing logo pending review"))
+
     def test_rejects_more_than_twelve_words(self):
         line = "Reply Meera menu logo invoice payment extra words keep going past limit now"
         self.assertGreater(len(line.split()), 12)

@@ -32,6 +32,13 @@ COMPLETION = {
     "addressed", "completed", "done", "finished", "fixed", "paid", "resolved", "sent",
 }
 
+NUMBERS = {
+    "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
+    "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
+    "1": "1", "2": "2", "3": "3", "4": "4", "5": "5",
+    "6": "6", "7": "7", "8": "8", "9": "9", "10": "10",
+}
+
 
 def split_words(text: str) -> list[str]:
     return [part for part in text.split() if part]
@@ -68,7 +75,46 @@ def accept(source: str, line: str) -> bool:
     invented_done = (word_set(line) & COMPLETION) - (word_set(source) & COMPLETION)
     if invented_done:
         return False
+    if not numbers_match(source, line):
+        return False
+    if not words_from_source(source, line):
+        return False
     return True
+
+
+FUNCTION = {
+    "a", "an", "the", "to", "of", "and", "or", "for", "in", "on", "at",
+    "into", "with", "from", "before", "after", "about",
+}
+
+
+def words_from_source(source: str, line: str) -> bool:
+    """A content word the task never used is a new fact."""
+    known = word_set(source) | FUNCTION | set(NUMBERS)
+    return all(word in known for word in word_set(line))
+
+
+def number_pairs(text: str) -> list[tuple[str, str]]:
+    """Pair each number with the next concrete word, so 'three frayed' cannot pass for 'three cables'."""
+    words = split_words(text)
+    pairs = []
+    for index, raw in enumerate(words):
+        key = raw.lower().strip(".,;:")
+        number = NUMBERS.get(key)
+        if number is None:
+            continue
+        for nxt in words[index + 1 : index + 4]:
+            token = nxt.lower().strip(".,;:–—\"'")
+            if token in NUMBERS or token in STOP or len(token) <= 3:
+                continue
+            pairs.append((number, token))
+            break
+    return pairs
+
+
+def numbers_match(source: str, line: str) -> bool:
+    allowed = set(number_pairs(source))
+    return all(pair in allowed for pair in number_pairs(line))
 
 
 def rejection_reason(source: str, model_line: str) -> str:
@@ -83,6 +129,10 @@ def rejection_reason(source: str, model_line: str) -> str:
         return "the model line dropped the thing the task was about, so it was thrown away"
     if (word_set(model_line) & COMPLETION) - (word_set(source) & COMPLETION):
         return "the model claimed the task was already done, so it was thrown away"
+    if not numbers_match(source, model_line):
+        return "the model changed a number, so it was thrown away"
+    if not words_from_source(source, model_line):
+        return "the model added a word the task never used, so it was thrown away"
     return "the model line was not kept, so the first 12 words were kept"
 
 
@@ -120,6 +170,8 @@ def ask_ollama(source: str, model: str, url: str, timeout: float) -> str:
     prompt = (
         "Shorten this postponed task to one line of at most 12 words. "
         "Keep one specific thing that is already named. "
+        "Do not change any number. Do not say the task is finished. "
+        "Use only words that already appear in the task. "
         "Do not add steps, advice, or new facts. "
         'Reply as JSON: {"line":"..."}\n\n'
         f"Task:\n{source}"

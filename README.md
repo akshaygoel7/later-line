@@ -26,6 +26,9 @@ A model line is kept only when all of these are true:
 - it is at most 12 words
 - it has fewer words than the task
 - it still contains a concrete word from the task
+- it does not claim the task is finished
+- a number stays attached to the same word as in the task
+- every content word already appears in the task
 
 A task that is already 12 words or fewer is not sent to the model.
 
